@@ -1,0 +1,27 @@
+{
+  "name": "adafruit-bot",
+  "version": "1.0.0",
+  "description": "An Adafruit bot that is geared to acquiring Raspberry Pis",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kpabellan/adafruit-bot.git"
+  },
+  "author": "Kobey Pabellan",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kpabellan/adafruit-bot/issues"
+  },
+  "homepage": "https://github.com/kpabellan/adafruit-bot#readme",
+  "dependencies": {
+    "discord.js": "^14.6.0",
+    "fs": "^0.0.1-security",
+    "https-proxy-agent": "^5.0.1",
+    "node-fetch": "^2.6.6",
+    "puppeteer": "^14.3.0",
+    "totp-generator": "^0.0.13"
+  }
+}
