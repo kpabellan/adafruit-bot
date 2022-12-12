@@ -16,9 +16,12 @@ If you don't already have one, you will need to create an [Adafruit](https://www
 2. Enter your proxies and separate them by a new line.
 
 ### Two-factor Authentication
+
 1. Enable two-factor authentication in account settings.
-2. Instead of scanning the QR code, you will want to click the "No Camera?" option.
+2. Click the "No Camera?" option.
 3. Copy the code and insert it in the `config.js` file as "twoFactorSecret".
+4. Scan the QR code with your authenticator app.
+5. Enter the authentication code.
 
 ###  User information
 
