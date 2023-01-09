@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 const { EmbedBuilder } = require('discord.js');
 const fetch = require('node-fetch');
 const fs = require('fs');
@@ -7,7 +7,7 @@ const puppeteer = require('puppeteer');
 const totp = require('totp-generator');
 const config = require('./config');
 
-const stateCodes = { "alabama": "1", "alaska": "2", "american samoa": "3", "arizona": "4", "arkansas": "5", "armed forces americas": "7", "armed forces europe": "9", "armed forces pacific": "11", "california": "12", "colorado": "13", "connecticut": "14", "delaware": "15", "district of columbia": "16", "federated states of micronesia": "17", "florida": "18", "georgia": "19", "guam": "20", "hawaii": "21", "idaho": "22", "illinois": "23", "indiana": "24", "iowa": "25", "kansas": "26", "kentucky": "27", "louisiana": "28", "maine": "29", "marshall islands": "30", "maryland": "31", "massachusetts": "32", "michigan": "33", "minnesota": "34", "mississippi": "35", "missouri": "36", "montana": "37", "nebraska": "38", "nevada": "39", "new hampshire": "40", "new jersey": "41", "new mexico": "42", "new york": "43", "north carolina": "44", "north dakota": "45", "northern mariana islands": "46", "ohio": "47", "oklahoma": "48", "oregon": "49", "palau": "50", "pennsylvania": "51", "puerto rico": "253", "rhode island": "53", "south carolina": "54", "south dakota": "55", "tennessee": "56", "texas": "57", "utah": "58", "vermont": "59", "virgin islands": "60", "virginia": "61", "washington": "62", "west virginia": "63", "wisconsin": "64", "wyoming": "65" };
+const stateCodes = { 'alabama': '1', 'alaska': '2', 'american samoa': '3', 'arizona': '4', 'arkansas': '5', 'armed forces americas': '7', 'armed forces europe': '9', 'armed forces pacific': '11', 'california': '12', 'colorado': '13', 'connecticut': '14', 'delaware': '15', 'district of columbia': '16', 'federated states of micronesia': '17', 'florida': '18', 'georgia': '19', 'guam': '20', 'hawaii': '21', 'idaho': '22', 'illinois': '23', 'indiana': '24', 'iowa': '25', 'kansas': '26', 'kentucky': '27', 'louisiana': '28', 'maine': '29', 'marshall islands': '30', 'maryland': '31', 'massachusetts': '32', 'michigan': '33', 'minnesota': '34', 'mississippi': '35', 'missouri': '36', 'montana': '37', 'nebraska': '38', 'nevada': '39', 'new hampshire': '40', 'new jersey': '41', 'new mexico': '42', 'new york': '43', 'north carolina': '44', 'north dakota': '45', 'northern mariana islands': '46', 'ohio': '47', 'oklahoma': '48', 'oregon': '49', 'palau': '50', 'pennsylvania': '51', 'puerto rico': '253', 'rhode island': '53', 'south carolina': '54', 'south dakota': '55', 'tennessee': '56', 'texas': '57', 'utah': '58', 'vermont': '59', 'virgin islands': '60', 'virginia': '61', 'washington': '62', 'west virginia': '63', 'wisconsin': '64', 'wyoming': '65' };
 const proxyData = fs.readFileSync('proxylist.txt', 'UTF-8');
 const proxies = proxyData.split(/\r?\n/);
 const deliveryName = config.userInfo.delivery.deliveryName;
@@ -56,12 +56,28 @@ function formatProxy(proxy) {
   }
 }
 
+function getHeaders(cookie) {
+  return {
+    'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'DNT': '1',
+    'Upgrade-Insecure-Requests': '1',
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+    'host': 'www.adafruit.com',
+    'Cookie': cookie
+  };
+}
+
 async function initialize(email, password) {
   let langauge = '';
   let amazonPayConnectedAuth = '';
   let loggedIn = '';
   let apaySessionSet = '';
   let cartCount = '';
+  let cartCountNumber = '';
   let accountsRememberUserToken = '';
   let accountsSessionId = '';
   let adafruitAccountsSession = '';
@@ -122,62 +138,41 @@ async function initialize(email, password) {
       zenid = cookies[i].name + '=' + cookies[i].value + '; ';
     } else if (cookies[i].name == 'cart_count') {
       cartCount = cookies[i].name + '=' + cookies[i].value + '; ';
+      cartCountNumber = cookies[i].value;
     }
+  }
+  const pageContent = await page.content();
+  const securityToken = await pageContent.split('name="securityToken" value="').pop().split('"')[0];
+  let cartProductIds = [];
+  if (cartCountNumber > 0) {
+    cartProductIds = pageContent.match(/(?<=<span class="product_id">PID: )(.*)(?=<\/span>)/g);
   }
   browser.close();
   cookie = langauge + amazonPayConnectedAuth + apaySessionSet + loggedIn + accountsRememberUserToken + accountsSessionId + adafruitAccountsSession + zenid + cartCount;
-  clearCart();
+  clearCart(securityToken, cartCountNumber, cartProductIds);
 }
 
-async function clearCart() {
-  const response = await fetch('https://www.adafruit.com/shopping_cart', {
-    method: 'GET',
-    body: null,
-    headers: {
-      'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'DNT': '1',
-      'Upgrade-Insecure-Requests': '1',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-      'host': 'www.adafruit.com',
-      'Cookie': cookie
-    }
-  });
-
-  const responseBody = await response.text();
-  const securityToken = await responseBody.split('name="securityToken" value="').pop().split('"')[0];
-  const cartCount = await responseBody.split('<span class="cart-count">').pop().split('</span>')[0];
-
+async function clearCart(securityToken, cartCount, cartProductIds) {
   if (cartCount > 0) {
-    const cartProductIds = responseBody.match(/(?<=<span class="product_id">PID: )(.*)(?=<\/span>)/g);
+    try {
+      for (let i = 0; i < cartProductIds.length; i++) {
+        const form = {
+          'action': 'delete_product',
+          'pid': cartProductIds[i],
+          'return_full_cart': '1',
+          'securityToken': securityToken
+        };
+        await fetch('https://www.adafruit.com/api/wildCart.php', {
+          method: 'POST',
+          body: new URLSearchParams(form),
+          headers: getHeaders('cart_count=' + cartCount + '; zenid=' + cookie.split('zenid=').pop().split(';')[0])
+        });
+      }
 
-    for (let i = 0; i < cartProductIds.length; i++) {
-      const form = {
-        'action': 'delete_product',
-        'pid': cartProductIds[i],
-        'return_full_cart': '1',
-        'securityToken': securityToken
-      };
-      await fetch('https://www.adafruit.com/api/wildCart.php', {
-        method: 'POST',
-        body: new URLSearchParams(form),
-        headers: {
-          'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-          'sec-ch-ua-platform': '"Windows"',
-          'DNT': '1',
-          'sec-ch-ua-mobile': '?0',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': '*/*',
-          'host': 'www.adafruit.com',
-          'Cookie': 'cart_count=' + cartCount + '; zenid=' + cookie.split('zenid=').pop().split(';')[0]
-        }
-      });
+      cookie = cookie.replace('cart_count=' + cartCount, 'cart_count=0');
+    } catch (error) {
+      console.log(error);
     }
-
-    cookie = cookie.replace('cart_count=' + cartCount, 'cart_count=0');
   }
   addToCart(securityToken);
 }
@@ -194,18 +189,7 @@ async function addToCart(securityToken) {
   const response = await fetch('https://www.adafruit.com/added', {
     method: 'POST',
     body: new URLSearchParams(form),
-    headers: {
-      'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'DNT': '1',
-      'Upgrade-Insecure-Requests': '1',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-      'host': 'www.adafruit.com',
-      'Cookie': cookie
-    }
+    headers: getHeaders(cookie)
   });
 
   const statusCodeNum = await String(response.status)[0];
@@ -221,18 +205,7 @@ async function getCSRF() {
   const response = await fetch('https://www.adafruit.com/checkout?step=2', {
     method: 'GET',
     body: null,
-    headers: {
-      'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'DNT': '1',
-      'Upgrade-Insecure-Requests': '1',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-      'host': 'www.adafruit.com',
-      'Cookie': cookie
-    }
+    headers: getHeaders(cookie)
   });
 
   const statusCodeNum = await String(response.status)[0];
@@ -275,18 +248,7 @@ async function submitInfo(csrfToken) {
   const response = await fetch('https://www.adafruit.com/checkout', {
     method: 'POST',
     body: new URLSearchParams(form),
-    headers: {
-      'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'DNT': '1',
-      'Upgrade-Insecure-Requests': '1',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-      'host': 'www.adafruit.com',
-      'Cookie': cookie
-    }
+    headers: getHeaders(cookie)
   });
 
   const statusCodeNum = await String(response.status)[0];
@@ -300,18 +262,7 @@ async function stepThree(csrfToken) {
   const response = await fetch('https://www.adafruit.com/checkout?step=3', {
     method: 'GET',
     body: null,
-    headers: {
-      'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'DNT': '1',
-      'Upgrade-Insecure-Requests': '1',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-      'host': 'www.adafruit.com',
-      'Cookie': cookie
-    }
+    headers: getHeaders(cookie)
   });
 
   const statusCodeNum = await String(response.status)[0];
@@ -330,18 +281,7 @@ async function submitShipping(csrfToken) {
   const response = await fetch('https://www.adafruit.com/checkout', {
     method: 'POST',
     body: new URLSearchParams(form),
-    headers: {
-      'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'DNT': '1',
-      'Upgrade-Insecure-Requests': '1',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-      'host': 'www.adafruit.com',
-      'Cookie': cookie
-    }
+    headers: getHeaders(cookie)
   });
 
   const statusCodeNum = await String(response.status)[0];
@@ -355,18 +295,7 @@ async function stepFour(csrfToken) {
   const response = await fetch('https://www.adafruit.com/checkout?step=4', {
     method: 'GET',
     body: null,
-    headers: {
-      'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'DNT': '1',
-      'Upgrade-Insecure-Requests': '1',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-      'host': 'www.adafruit.com',
-      'Cookie': cookie
-    }
+    headers: getHeaders(cookie)
   });
 
   const statusCodeNum = await String(response.status)[0];
@@ -393,18 +322,7 @@ async function submitPayment(csrfToken) {
   const response = await fetch('https://www.adafruit.com/checkout', {
     method: 'POST',
     body: new URLSearchParams(form),
-    headers: {
-      'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'DNT': '1',
-      'Upgrade-Insecure-Requests': '1',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-      'host': 'www.adafruit.com',
-      'Cookie': cookie
-    }
+    headers: getHeaders(cookie)
   });
 
   const statusCodeNum = await String(response.status)[0];
@@ -431,18 +349,7 @@ async function checkoutProcess(csrfToken) {
   const response = await fetch('https://www.adafruit.com/index.php?main_page=checkout_process', {
     method: 'POST',
     body: new URLSearchParams(form),
-    headers: {
-      'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'DNT': '1',
-      'Upgrade-Insecure-Requests': '1',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-      'host': 'www.adafruit.com',
-      'Cookie': cookie
-    }
+    headers: getHeaders(cookie)
   });
 
   const statusCodeNum = await String(response.status)[0];
@@ -456,18 +363,7 @@ async function checkoutSuccess() {
   const response = await fetch('https://www.adafruit.com/index.php?main_page=checkout_success', {
     method: 'GET',
     body: null,
-    headers: {
-      'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'DNT': '1',
-      'Upgrade-Insecure-Requests': '1',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-      'host': 'www.adafruit.com',
-      'Cookie': cookie
-    }
+    headers: getHeaders(cookie)
   });
 
   const statusCodeNum = await String(response.status)[0];
@@ -532,17 +428,7 @@ async function monitor() {
         agent: new HttpsProxyAgent(formatProxy(proxies[randInt(0, proxies.length - 1)])),
         method: 'GET',
         body: null,
-        headers: {
-          'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
-          'sec-ch-ua-mobile': '?0',
-          'sec-ch-ua-platform': '"Windows"',
-          'DNT': '1',
-          'Upgrade-Insecure-Requests': '1',
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-          'host': 'www.adafruit.com',
-        }
+        headers: getHeaders(null)
       });
 
       if (response.status == 200) {
