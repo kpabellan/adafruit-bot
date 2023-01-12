@@ -71,7 +71,22 @@ function getHeaders(cookie) {
   };
 }
 
-async function initialize(email, password) {
+async function initialize(email, password, taskProxy) {
+  taskProxy = taskProxy.replace('http://', '');
+  let proxy = ''
+  let proxyCredentials = ''
+  let proxyUser = ''
+  let proxyPass = ''
+
+  if (taskProxy.includes('@')) {
+    proxy = taskProxy.split('@')[1];
+    proxyCredentials = taskProxy.split('@')[0];
+    proxyUser = proxyCredentials.split(':')[0];
+    proxyPass = proxyCredentials.split(':')[1];
+  } else {
+    proxy = taskProxy;
+  }
+  
   let langauge = '';
   let amazonPayConnectedAuth = '';
   let loggedIn = '';
@@ -85,13 +100,17 @@ async function initialize(email, password) {
 
   const browser = await puppeteer.launch({
     headless: false,
-    args: ['--app=https://accounts.adafruit.com/users/sign_in']
+    args: ['--proxy-server=' + proxy]
   });
-  const [page] = await browser.pages();
+  const page = await browser.newPage();
   await page.setViewport({
     width: 1366,
     height: 768
   });
+  if (taskProxy.includes('@')) {
+    await page.authenticate({ username: proxyUser, password: proxyPass });
+  }
+  await page.goto('https://accounts.adafruit.com/users/sign_in');
   await page.waitForSelector('#user_login', {
     timeout: 0
   });
@@ -149,10 +168,11 @@ async function initialize(email, password) {
   }
   browser.close();
   cookie = langauge + amazonPayConnectedAuth + apaySessionSet + loggedIn + accountsRememberUserToken + accountsSessionId + adafruitAccountsSession + zenid + cartCount;
-  clearCart(securityToken, cartCountNumber, cartProductIds);
+  proxy = 'http://' + taskProxy;
+  clearCart(securityToken, cartCountNumber, cartProductIds, proxy);
 }
 
-async function clearCart(securityToken, cartCount, cartProductIds) {
+async function clearCart(securityToken, cartCount, cartProductIds, proxy) {
   if (cartCount > 0) {
     try {
       for (let i = 0; i < cartProductIds.length; i++) {
@@ -164,6 +184,7 @@ async function clearCart(securityToken, cartCount, cartProductIds) {
         };
         await fetch('https://www.adafruit.com/api/wildCart.php', {
           method: 'POST',
+          agent: new HttpsProxyAgent(proxy),
           body: new URLSearchParams(form),
           headers: getHeaders('cart_count=' + cartCount + '; zenid=' + cookie.split('zenid=').pop().split(';')[0])
         });
@@ -174,10 +195,10 @@ async function clearCart(securityToken, cartCount, cartProductIds) {
       console.log(error);
     }
   }
-  addToCart(securityToken);
+  addToCart(securityToken, proxy);
 }
 
-async function addToCart(securityToken) {
+async function addToCart(securityToken, proxy) {
   const form = {
     'action': 'add_product',
     'pid': productId,
@@ -188,6 +209,7 @@ async function addToCart(securityToken) {
   };
   const response = await fetch('https://www.adafruit.com/added', {
     method: 'POST',
+    agent: new HttpsProxyAgent(proxy),
     body: new URLSearchParams(form),
     headers: getHeaders(cookie)
   });
@@ -196,14 +218,15 @@ async function addToCart(securityToken) {
 
   if (statusCodeNum == 2 || statusCodeNum == 3) {
     console.log('Item added to cart');
-    getCSRF();
+    getCSRF(proxy);
   }
 }
 
-async function getCSRF() {
+async function getCSRF(proxy) {
   cookie = cookie.replace('cart_count=0', 'cart_count=1');
   const response = await fetch('https://www.adafruit.com/checkout?step=2', {
     method: 'GET',
+    agent: new HttpsProxyAgent(proxy),
     body: null,
     headers: getHeaders(cookie)
   });
@@ -213,11 +236,11 @@ async function getCSRF() {
   if (statusCodeNum == 2 || statusCodeNum == 3) {
     const responseBody = await response.text();
     const csrfToken = responseBody.split('name="csrf_token" value="').pop().split('"')[0];
-    submitInfo(csrfToken);
+    submitInfo(csrfToken, proxy);
   }
 }
 
-async function submitInfo(csrfToken) {
+async function submitInfo(csrfToken, proxy) {
   const form = {
     'action': 'save_two',
     'billing_address1': billingAddress,
@@ -247,6 +270,7 @@ async function submitInfo(csrfToken) {
   };
   const response = await fetch('https://www.adafruit.com/checkout', {
     method: 'POST',
+    agent: new HttpsProxyAgent(proxy),
     body: new URLSearchParams(form),
     headers: getHeaders(cookie)
   });
@@ -254,13 +278,14 @@ async function submitInfo(csrfToken) {
   const statusCodeNum = await String(response.status)[0];
 
   if (statusCodeNum == 2 || statusCodeNum == 3) {
-    stepThree(csrfToken);
+    stepThree(csrfToken, proxy);
   }
 }
 
-async function stepThree(csrfToken) {
+async function stepThree(csrfToken, proxy) {
   const response = await fetch('https://www.adafruit.com/checkout?step=3', {
     method: 'GET',
+    agent: new HttpsProxyAgent(proxy),
     body: null,
     headers: getHeaders(cookie)
   });
@@ -268,11 +293,11 @@ async function stepThree(csrfToken) {
   const statusCodeNum = await String(response.status)[0];
 
   if (statusCodeNum == 2 || statusCodeNum == 3) {
-    submitShipping(csrfToken);
+    submitShipping(csrfToken, proxy);
   }
 }
 
-async function submitShipping(csrfToken) {
+async function submitShipping(csrfToken, proxy) {
   const form = {
     'action': 'save_three',
     'csrf_token': csrfToken,
@@ -280,6 +305,7 @@ async function submitShipping(csrfToken) {
   };
   const response = await fetch('https://www.adafruit.com/checkout', {
     method: 'POST',
+    agent: new HttpsProxyAgent(proxy),
     body: new URLSearchParams(form),
     headers: getHeaders(cookie)
   });
@@ -287,13 +313,14 @@ async function submitShipping(csrfToken) {
   const statusCodeNum = await String(response.status)[0];
 
   if (statusCodeNum == 2 || statusCodeNum == 3) {
-    stepFour(csrfToken);
+    stepFour(csrfToken, proxy);
   }
 }
 
-async function stepFour(csrfToken) {
+async function stepFour(csrfToken, proxy) {
   const response = await fetch('https://www.adafruit.com/checkout?step=4', {
     method: 'GET',
+    agent: new HttpsProxyAgent(proxy),
     body: null,
     headers: getHeaders(cookie)
   });
@@ -301,11 +328,11 @@ async function stepFour(csrfToken) {
   const statusCodeNum = await String(response.status)[0];
 
   if (statusCodeNum == 2 || statusCodeNum == 3) {
-    submitPayment(csrfToken);
+    submitPayment(csrfToken, proxy);
   }
 }
 
-async function submitPayment(csrfToken) {
+async function submitPayment(csrfToken, proxy) {
   const form = {
     'action': 'save_four',
     'authorizenet_aim_cc_cvv': config.userInfo.cardInfo.cardCVV,
@@ -321,6 +348,7 @@ async function submitPayment(csrfToken) {
   };
   const response = await fetch('https://www.adafruit.com/checkout', {
     method: 'POST',
+    agent: new HttpsProxyAgent(proxy),
     body: new URLSearchParams(form),
     headers: getHeaders(cookie)
   });
@@ -330,11 +358,11 @@ async function submitPayment(csrfToken) {
   if (statusCodeNum == 2 || statusCodeNum == 3) {
     console.log('Submitted payment');
     console.log('Checking out');
-    checkoutProcess(csrfToken);
+    checkoutProcess(csrfToken, proxy);
   }
 }
 
-async function checkoutProcess(csrfToken) {
+async function checkoutProcess(csrfToken, proxy) {
   const zenId = cookie.split('zenid=').pop().split(';')[0];
   const form = {
     'cc_cvv': config.userInfo.cardInfo.cardCVV,
@@ -348,6 +376,7 @@ async function checkoutProcess(csrfToken) {
   };
   const response = await fetch('https://www.adafruit.com/index.php?main_page=checkout_process', {
     method: 'POST',
+    agent: new HttpsProxyAgent(proxy),
     body: new URLSearchParams(form),
     headers: getHeaders(cookie)
   });
@@ -355,13 +384,14 @@ async function checkoutProcess(csrfToken) {
   const statusCodeNum = await String(response.status)[0];
 
   if (statusCodeNum == 2 || statusCodeNum == 3) {
-    checkoutSuccess();
+    checkoutSuccess(proxy);
   }
 }
 
-async function checkoutSuccess() {
+async function checkoutSuccess(proxy) {
   const response = await fetch('https://www.adafruit.com/index.php?main_page=checkout_success', {
     method: 'GET',
+    agent: new HttpsProxyAgent(proxy),
     body: null,
     headers: getHeaders(cookie)
   });
@@ -418,46 +448,49 @@ async function sendWebhook() {
 }
 
 async function monitor() {
+  console.log('Monitoring...');
   try {
     const delay = ms => new Promise(res => setTimeout(res, ms));
     let taskOn = 0;
 
     while (taskOn == 0) {
-      console.log('Monitoring...');
-      let response = await fetch('https://www.adafruit.com/product/4564', {
-        agent: new HttpsProxyAgent(formatProxy(proxies[randInt(0, proxies.length - 1)])),
+      const proxy = formatProxy(proxies[randInt(0, proxies.length - 1)])
+      const taskProxy = new HttpsProxyAgent(proxy)
+
+      const response = await fetch('https://www.adafruit.com/product/4564', {
+        agent: taskProxy,
         method: 'GET',
         body: null,
         headers: getHeaders(null)
       });
 
       if (response.status == 200) {
-        let responseBody = await await response.text();
-        let rpi8 = await responseBody.split('8GB </span>').pop().split('</span>')[0];
-        let rpi4 = await responseBody.split('4GB </span>').pop().split('</span>')[0];
-        let rpi2 = await responseBody.split('2GB </span>').pop().split('</span>')[0];
-        let rpi1 = await responseBody.split('1GB </span>').pop().split('</span>')[0];
+        const responseBody = await await response.text();
+        const rpi8 = await responseBody.split('8GB </span>').pop().split('</span>')[0];
+        const rpi4 = await responseBody.split('4GB </span>').pop().split('</span>')[0];
+        const rpi2 = await responseBody.split('2GB </span>').pop().split('</span>')[0];
+        const rpi1 = await responseBody.split('1GB </span>').pop().split('</span>')[0];
 
         if (!rpi8.includes('Out of stock')) {
           console.log('Stock detected for Raspberry Pi 4 Model B - 8 GB RAM');
           taskOn = 1;
           productId = 4564;
-          await initialize(config.accountInfo.email, config.accountInfo.password);
+          await initialize(config.accountInfo.email, config.accountInfo.password, proxy);
         } else if (!rpi4.includes('Out of stock')) {
           console.log('Stock detected for Raspberry Pi 4 Model B - 4 GB RAM');
           taskOn = 1;
           productId = 4296;
-          await initialize(config.accountInfo.email, config.accountInfo.password);
+          await initialize(config.accountInfo.email, config.accountInfo.password, proxy);
         } else if (!rpi2.includes('Out of stock')) {
           console.log('Stock detected for Raspberry Pi 4 Model B - 2 GB RAM');
           taskOn = 1;
           productId = 4292;
-          await initialize(config.accountInfo.email, config.accountInfo.password);
+          await initialize(config.accountInfo.email, config.accountInfo.password, proxy);
         } else if (!rpi1.includes('Out of stock')) {
           console.log('Stock detected for Raspberry Pi 4 Model B - 1 GB RAM');
           taskOn = 1;
           productId = 4295;
-          await initialize(config.accountInfo.email, config.accountInfo.password);
+          await initialize(config.accountInfo.email, config.accountInfo.password, proxy);
         }
       } else {
         console.log('Error: ' + response.status);
