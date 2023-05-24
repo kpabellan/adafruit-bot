@@ -489,15 +489,24 @@ async function monitor() {
       const proxy = formatProxy(proxies[randInt(0, proxies.length - 1)]);
       const taskProxy = new HttpsProxyAgent(proxy);
 
-      const response = await fetch('https://www.adafruit.com/product/4564', {
-        agent: taskProxy,
-        method: 'GET',
-        body: null,
-        headers: getHeaders(null)
-      });
+      let [rpi4B, rpiZero2W] = await Promise.all([
+        fetch('https://www.adafruit.com/product/4564', {
+          agent: taskProxy,
+          method: 'GET',
+          body: null,
+          headers: getHeaders(null)
+        }),
+        fetch('https://www.adafruit.com/product/5291', {
+          agent: taskProxy,
+          method: 'GET',
+          body: null,
+          headers: getHeaders(null)
+        })
+      ]);
 
-      if (response.status == 200) {
-        const responseBody = await await response.text();
+      // Raspberry Pi 4 Model B
+      if (rpi4B.status == 200) {
+        const responseBody = await await rpi4B.text();
         const rpi8 = await responseBody.split('8GB </span>').pop().split('</span>')[0];
         const rpi4 = await responseBody.split('4GB </span>').pop().split('</span>')[0];
         const rpi2 = await responseBody.split('2GB </span>').pop().split('</span>')[0];
@@ -533,8 +542,26 @@ async function monitor() {
           }
         }
       } else {
-        console.log('Error: ' + response.status);
+        console.log('Error: ' + rpi4B.status);
       }
+
+      // Raspberry Pi Zero 2 W
+      if (rpiZero2W.status == 200) {
+        const responseBody = await await rpiZero2W.text();
+        const rpi02W = await responseBody.split('itemprop="availability"').pop().split('</div>')[0];
+
+        if (!rpi02W.includes('Out of stock')) {
+          console.log('Stock detected for Raspberry Pi Zero 2 W');
+          taskOn = 1;
+          let productId = 5291;
+          for (let i = 0; i < config.profiles.length; i++) {
+            await checkout(config.profiles[i], productId);
+          }
+        }
+      } else {
+        console.log('Error: ' + rpiZero2W.status);
+      }
+
       await delay(randInt(2500, 5000));
     }
   } catch (e) {
