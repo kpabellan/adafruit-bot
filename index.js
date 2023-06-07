@@ -63,6 +63,7 @@ function getHeaders(cookie) {
 
 function sendWebhook(email, productId) {
   let item = '';
+  let thumbnail = 'https://cdn-shop.adafruit.com/970x728/4564-00.jpg';
 
   if (productId == 4564) {
     item = 'Raspberry Pi 4 Model B - 8 GB RAM';
@@ -72,9 +73,12 @@ function sendWebhook(email, productId) {
     item = 'Raspberry Pi 4 Model B - 2 GB RAM';
   } else if (productId == 4295) {
     item = 'Raspberry Pi 4 Model B - 1 GB RAM';
+  } else if (productId == 5291) {
+    item = 'Raspberry Pi Zero 2 W';
+    thumbnail = 'https://cdn-shop.adafruit.com/970x728/5291-00.jpg';
   }
 
-  const myEmbed = new EmbedBuilder().setColor('#3F4CE6').setTitle('** :tada: Successful Adafruit Checkout! :tada: **').setThumbnail('https://cdn-shop.adafruit.com/970x728/4564-00.jpg').addFields({
+  const myEmbed = new EmbedBuilder().setColor('#3F4CE6').setTitle('** :tada: Successful Adafruit Checkout! :tada: **').setThumbnail(thumbnail).addFields({
     name: 'Product: ',
     value: item,
     inline: false
